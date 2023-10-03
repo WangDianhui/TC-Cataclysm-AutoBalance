@@ -33,6 +33,7 @@
 #include "Timer.h"
 #include "WorldStateDefines.h"
 #include "Transaction.h"
+#include "DataMap.h"
 #include "Weather.h"
 #include <boost/heap/fibonacci_heap.hpp>
 #include <bitset>
@@ -488,7 +489,8 @@ class TC_GAME_API Map : public GridRefManager<NGridType>
         {
             _updateObjects.erase(obj);
         }
-
+// AB DataMap
+        DataMap CustomData;
     private:
         void SetTimer(uint32 t) { i_gridExpiry = t < MIN_GRID_DELAY ? MIN_GRID_DELAY : t; }
 
