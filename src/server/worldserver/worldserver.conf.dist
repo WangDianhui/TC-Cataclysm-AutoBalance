@@ -4205,6 +4205,31 @@ AutoBalanceAnnounce.enable = 1
 
 AutoBalance.enable = 1
 
+##########################
+#
+# Minimum Players
+#
+##########################
+#
+#     AutoBalance.MinPlayers
+#     AutoBalance.MinPlayers.Heroic
+#        Sets the Minimum Number of players to scale down to for all normal/heroic instances.
+#        If fewer than this number of players enter the instance, scale to the specified value.
+#
+#        NOTE: Player Difficulty Offset is applied AFTER the player count is adjusted for the MinPlayer setting
+#
+#        AutoBalance.MinPlayers affects only normal instances.
+#        AutoBalance.MinPlayers.Heroic affects only heroic instances.
+#
+#        Example: AutoBalance.MinPlayers = 1
+#                 AutoBalance.MinPlayers.Heroic = 5
+#
+#        Default: 1
+AutoBalance.MinPlayers = 1
+AutoBalance.MinPlayers.Heroic = 1
+
+##########################
+#
 #     AutoBalance.InflectionPoint series
 #        Adjust value of Hyperbolic Tangent function where
 #        the curve of scaling must change. A lower value means higher difficulty.
@@ -4362,11 +4387,11 @@ AutoBalance.playerCountDifficultyOffset = 0
 #        All 5 Man Mobs should go in .AutoBalance.5.Name
 #        All 10 Man Mobs should go in .AutoBalance.10.Name etc.
 
-AutoBalance.ForcedID40 = "11583,16441,30057,13020,15589,14435,18192,14889,14888,14887,14890,15302,15818,15742,15741,15740,18338"
-AutoBalance.ForcedID25 = "22997,21966,21965,21964,21806,21215,21845,19728,12397,17711,18256,18192,"
+AutoBalance.ForcedID40 = ""
+AutoBalance.ForcedID25 = ""
 AutoBalance.ForcedID20 = ""
-AutoBalance.ForcedID10 = "15689,15550,16152,17521,17225,16028,29324,31099"
-AutoBalance.ForcedID5  = "8317,15203,15204,15205,15305,6109,26801,30508,26799,30495,26803,30497,27859,27249"
+AutoBalance.ForcedID10 = ""
+AutoBalance.ForcedID5  = ""
 AutoBalance.ForcedID2  = ""
 
 #

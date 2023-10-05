@@ -48,11 +48,11 @@ class AutoBalanceCreatureInfo : public DataMap::Base {
 public:
     AutoBalanceCreatureInfo() {}
 
-    AutoBalanceCreatureInfo(uint32 count, float dmg, float hpRate, float manaRate, float armorRate, uint8 selLevel) :
+    AutoBalanceCreatureInfo(int8 count, float dmg, float hpRate, float manaRate, float armorRate, uint8 selLevel) :
             instancePlayerCount(count), selectedLevel(selLevel), DamageMultiplier(dmg), HealthMultiplier(hpRate), ManaMultiplier(manaRate),
             ArmorMultiplier(armorRate) {}
 
-    uint32 instancePlayerCount = 0;
+    int8 instancePlayerCount = 0;
     uint8 selectedLevel = 0;
     // this is used to detect creatures that update their entry
     uint32 entry = 0;
@@ -66,17 +66,19 @@ class AutoBalanceMapInfo : public DataMap::Base {
 public:
     AutoBalanceMapInfo() {}
 
-    AutoBalanceMapInfo(uint32 count, uint8 selLevel) : playerCount(count), mapLevel(selLevel) {}
+    AutoBalanceMapInfo(int8 count, int8 selLevel) : playerCount(count), mapLevel(selLevel) {}
 
-    uint32 playerCount = 0;
+    int8 playerCount = 0;
+    int8 adjustedPlayerCount = 0;
     uint8 mapLevel = 0;
 };
 
 // The map values correspond with the .AutoBalance.XX.Name entries in the configuration file.
 static std::map<int, int> forcedCreatureIds;
+static int8 minPlayersNormal, minPlayersRaid, minPlayers10M, minPlayers25M;
 static int8 PlayerCountDifficultyOffset, LevelScaling, higherOffset, lowerOffset;
 static bool enabled, LevelEndGameBoost, DungeonsOnly, PlayerChangeNotify, LevelUseDb, DungeonScaleDownXP;
-static float globalRate, healthMultiplier, manaMultiplier, armorMultiplier, damageMultiplier, MinHPModifier, MinManaModifier, MinDamageModifier,
+static float globalRate, healthMultiplier, manaMultiplier, armorMultiplier, damageMultiplier, MinHPModifier, MinManaModifier, MinDamageModifier, MinArmorModifier, 
         InflectionPoint, InflectionPointRaid, InflectionPointRaid10M, InflectionPointRaid25M, InflectionPointHeroic, InflectionPointRaidHeroic,
         InflectionPointRaid10MHeroic, InflectionPointRaid25MHeroic, BossInflectionMult;
 
@@ -111,7 +113,7 @@ int GetForcedNumPlayers(int creatureId) {
     return forcedCreatureIds[creatureId];
 }
 
-void getAreaLevel(Map *map, uint8 areaid, uint8 &min, uint8 &max) {
+void getAreaLevel(Map *map, uint32 areaid, uint8 &min, uint8 &max) {
     LFGDungeonEntry const *dungeon = DBCManager::GetLFGDungeon(map->GetId(), map->GetDifficulty());
     if (dungeon && (map->IsDungeon() || map->IsRaid())) {
         min = dungeon->MinLevel;
@@ -127,6 +129,40 @@ void getAreaLevel(Map *map, uint8 areaid, uint8 &min, uint8 &max) {
     }
 }
 
+void UpdateMapPlayerStats(Map* map, bool adjustPlayerCount = true)
+{
+    // get the map's info
+    AutoBalanceMapInfo *mapABInfo=map->CustomData.GetDefault<AutoBalanceMapInfo>("AutoBalanceMapInfo");
+
+    Map::PlayerList const &playerList = map->GetPlayers();
+    if (!playerList.isEmpty()) {
+        for (Map::PlayerList::const_iterator playerIteration = playerList.begin(); playerIteration != playerList.end(); ++playerIteration) {
+            if (Player * playerHandle = playerIteration->GetSource()) {
+                if (!playerHandle->IsGameMaster() && playerHandle->getLevel() > mapABInfo->mapLevel) {
+                    mapABInfo->mapLevel = playerHandle->getLevel();
+                }
+            }
+        }
+    }
+      
+    // update the player count (unless we should specifically skip this step)
+    if (adjustPlayerCount)
+    {
+        mapABInfo->playerCount = map->GetPlayersCountExceptGMs();
+    }
+
+    // start with the real player count
+    int8 adjustedPlayerCount = mapABInfo->playerCount;
+
+    // adjust by the PlayerDifficultyOffset
+    adjustedPlayerCount += PlayerCountDifficultyOffset;
+    // if the adjusted player count is below the min players setting, adjust it
+    if (adjustedPlayerCount < minPlayersNormal)
+        adjustedPlayerCount = minPlayersNormal;
+    // store the adjusted player count in the map's info
+    mapABInfo->adjustedPlayerCount = adjustedPlayerCount;
+}
+
 class AutoBalance_WorldScript : public WorldScript {
 public:
     AutoBalance_WorldScript() : WorldScript("AutoBalance_WorldScript") {
@@ -139,7 +175,7 @@ public:
     void OnStartup() override {
     }
 
-    void SetInitialWorldSettings() {
+    void SetInitialWorldSettings() override{
         forcedCreatureIds.clear();
         LoadForcedCreatureIdsFromString(sConfigMgr->GetStringDefault("AutoBalance.ForcedID40", ""), 40);
         LoadForcedCreatureIdsFromString(sConfigMgr->GetStringDefault("AutoBalance.ForcedID25", ""), 25);
@@ -154,7 +190,12 @@ public:
         PlayerChangeNotify = sConfigMgr->GetBoolDefault("AutoBalance.PlayerChangeNotify", 1);
         LevelUseDb = sConfigMgr->GetBoolDefault("AutoBalance.levelUseDbValuesWhenExists", 1);
         DungeonScaleDownXP = sConfigMgr->GetBoolDefault("AutoBalance.DungeonScaleDownXP", 0);
-
+        // Min Players
+        minPlayersNormal = sConfigMgr->GetIntDefault("AutoBalance.MinPlayers", 1);
+        minPlayersRaid = sConfigMgr->GetIntDefault("AutoBalance.MinPlayers.Raid", 1);
+        minPlayers10M = sConfigMgr->GetIntDefault("AutoBalance.MinPlayers.10M", 1);
+        minPlayers25M = sConfigMgr->GetIntDefault("AutoBalance.MinPlayers.25M", 1);
+      
         LevelScaling = sConfigMgr->GetIntDefault("AutoBalance.levelScaling", 1);
         PlayerCountDifficultyOffset = sConfigMgr->GetIntDefault("AutoBalance.playerCountDifficultyOffset", 0);
         higherOffset = sConfigMgr->GetIntDefault("AutoBalance.levelHigherOffset", 3);
@@ -177,6 +218,7 @@ public:
         MinHPModifier = sConfigMgr->GetFloatDefault("AutoBalance.MinHPModifier", 0.1f);
         MinManaModifier = sConfigMgr->GetFloatDefault("AutoBalance.MinManaModifier", 0.1f);
         MinDamageModifier = sConfigMgr->GetFloatDefault("AutoBalance.MinDamageModifier", 0.1f);
+        MinArmorModifier = sConfigMgr->GetFloatDefault("AutoBalance.MinArmorModifier", 0.1f);
     }
 };
 
@@ -212,8 +254,8 @@ public:
 
             if (map->IsDungeon()) {
                 // Ensure that the players always get the same XP, even when entering the dungeon alone
-                uint32 maxPlayerCount = ((InstanceMap *) sMapMgr->FindMap(map->GetId(), map->GetInstanceId()))->GetMaxPlayers();
-                uint32 currentPlayerCount = map->GetPlayersCountExceptGMs();
+                int8 maxPlayerCount = ((InstanceMap *) sMapMgr->FindMap(map->GetId(), map->GetInstanceId()))->GetMaxPlayers();
+                int8 currentPlayerCount = map->GetPlayersCountExceptGMs();
                 amount *= (float) currentPlayerCount / maxPlayerCount;
             }
         }
@@ -273,6 +315,7 @@ public:
 };
 
 class AutoBalance_AllMapScript : public AllMapScript {
+
 public:
     AutoBalance_AllMapScript() : AllMapScript("AutoBalance_AllMapScript") {
     }
@@ -281,34 +324,17 @@ public:
         if (!enabled) {
             return;
         }
-
+        if (!map->IsDungeon() && !map->IsBattleground())
+            return;
+        
         if (player->IsGameMaster()) {
             return;
         }
 
         AutoBalanceMapInfo *mapABInfo = map->CustomData.GetDefault<AutoBalanceMapInfo>("AutoBalanceMapInfo");
-        // always check level, even if not conf enabled
-        // because we can enable at runtime and we need this information
-        if (player) {
-            if (player->getLevel() > mapABInfo->mapLevel) {
-                mapABInfo->mapLevel = player->getLevel();
-            }
-        } else {
-            Map::PlayerList const &playerList = map->GetPlayers();
-            if (!playerList.isEmpty()) {
-                for (Map::PlayerList::const_iterator playerIteration = playerList.begin(); playerIteration != playerList.end(); ++playerIteration) {
-                    if (Player * playerHandle = playerIteration->GetSource()) {
-                        if (!playerHandle->IsGameMaster() && playerHandle->getLevel() > mapABInfo->mapLevel) {
-                            mapABInfo->mapLevel = playerHandle->getLevel();
-                        }
-                    }
-                }
-            }
-        }
 
-        mapABInfo->playerCount++; //(maybe we've to found a safe solution to avoid player recount each time)
-        //mapABInfo->playerCount = map->GetPlayersCountExceptGMs();
-
+        UpdateMapPlayerStats(map);
+        
         if (PlayerChangeNotify) {
             if (map->GetEntry()->IsDungeon() && player) {
                 Map::PlayerList const &playerList = map->GetPlayers();
@@ -316,8 +342,8 @@ public:
                     for (Map::PlayerList::const_iterator playerIteration = playerList.begin(); playerIteration != playerList.end(); ++playerIteration) {
                         if (Player * playerHandle = playerIteration->GetSource()) {
                             ChatHandler chatHandle = ChatHandler(playerHandle->GetSession());
-                            chatHandle.PSendSysMessage("|cffFF0000 [AutoBalance]|r|cffFF8000 %s entered the Instance %s. Auto setting player count to %u (Player Difficulty Offset = %u) |r",
-                                                       player->GetName().c_str(), map->GetMapName(), mapABInfo->playerCount + PlayerCountDifficultyOffset, PlayerCountDifficultyOffset);
+                            chatHandle.PSendSysMessage("|cffFF0000 [AutoBalance]|r|cffFF8000 %s entered the Instance %s. Auto setting player count to %u (Offset = %d, Minimal players = %u) |r",
+                                                       player->GetName().c_str(), map->GetMapName(), mapABInfo->adjustedPlayerCount, PlayerCountDifficultyOffset, minPlayersNormal);
                         }
                     }
                 }
@@ -335,17 +361,9 @@ public:
         }
 
         AutoBalanceMapInfo *mapABInfo = map->CustomData.GetDefault<AutoBalanceMapInfo>("AutoBalanceMapInfo");
-        // (maybe we've to found a safe solution to avoid player recount each time)
-        mapABInfo->playerCount--;
-        // mapABInfo->playerCount = map->GetPlayersCountExceptGMs();
-
-        // always check level, even if not conf enabled
-        // because we can enable at runtime and we need this information
-        if (!mapABInfo->playerCount) {
-            mapABInfo->mapLevel = 0;
-            return;
-        }
-
+        
+        UpdateMapPlayerStats(map, false);
+        
         if (PlayerChangeNotify) {
             if (map->GetEntry()->IsDungeon() && player) {
                 Map::PlayerList const &playerList = map->GetPlayers();
@@ -353,8 +371,8 @@ public:
                     for (Map::PlayerList::const_iterator playerIteration = playerList.begin(); playerIteration != playerList.end(); ++playerIteration) {
                         if (Player * playerHandle = playerIteration->GetSource()) {
                             ChatHandler chatHandle = ChatHandler(playerHandle->GetSession());
-                            chatHandle.PSendSysMessage("|cffFF0000 [-AutoBalance]|r|cffFF8000 %s left the Instance %s. Auto setting player count to %u (Player Difficulty Offset = %u) |r",
-                                                       player->GetName().c_str(), map->GetMapName(), mapABInfo->playerCount, PlayerCountDifficultyOffset);
+                            chatHandle.PSendSysMessage("|cffFF0000 [-AutoBalance]|r|cffFF8000 %s left the Instance %s. Auto setting player count to %u (Offset = %d, Minimal players = %u) |r",
+                                                       player->GetName().c_str(), map->GetMapName(), mapABInfo->adjustedPlayerCount, PlayerCountDifficultyOffset, minPlayersNormal);
                         }
                     }
                 }
@@ -408,7 +426,7 @@ public:
 
         CreatureTemplate const *creatureTemplate = creature->GetCreatureTemplate();
         InstanceMap *instanceMap = ((InstanceMap *) sMapMgr->FindMap(creature->GetMapId(), creature->GetInstanceId()));
-        uint32 maxNumberOfPlayers = instanceMap->GetMaxPlayers();
+        int8 maxNumberOfPlayers = instanceMap->GetMaxPlayers();
         int forcedNumPlayers = GetForcedNumPlayers(creatureTemplate->Entry);
 
         if (forcedNumPlayers > 0) {
@@ -434,7 +452,7 @@ public:
             return;
         }
 
-        uint32 curCount = mapABInfo->playerCount + PlayerCountDifficultyOffset;
+        int8 curCount = mapABInfo->adjustedPlayerCount;
         uint8 bonusLevel = creatureTemplate->rank == CREATURE_ELITE_WORLDBOSS ? 3 : 0;
 
         // already scaled
@@ -670,29 +688,29 @@ public:
                 {
                         {"setoffset", SEC_GAMEMASTER, true, &HandleABSetOffsetCommand,     "Sets the global Player Difficulty Offset for instances. Example: (You + offset(1) = 2 player difficulty)."},
                         {"getoffset", SEC_GAMEMASTER, true, &HandleABGetOffsetCommand,     "Shows current global player offset value"},
-                        {"checkmap",  SEC_GAMEMASTER, true, &HandleABCheckMapCommand,      "Run a check for current map/instance, it can help in case you're testing autobalance with GM."},
+
                         {"mapstat",   SEC_GAMEMASTER, true, &HandleABMapStatsCommand,      "Shows current autobalance information for this map-"},
                         {"crstat",    SEC_GAMEMASTER, true, &HandleABCreatureStatsCommand, "Shows current autobalance information for selected creature."},
                 };
 
         static std::vector <ChatCommand> commandTable =
                 {
-                        {"vas", SEC_GAMEMASTER, false, NULL, "", ABCommandTable},
+                        {"ab", SEC_GAMEMASTER, false, NULL, "", ABCommandTable},
                 };
         return commandTable;
     }
 
     static bool HandleABSetOffsetCommand(ChatHandler *handler, const char *args) {
         if (!*args) {
-            handler->PSendSysMessage(".vas setoffset #");
+            handler->PSendSysMessage(".ab setoffset #");
             handler->PSendSysMessage("Sets the Player Difficulty Offset for instances. Example: (You + offset(1) = 2 player difficulty).");
             return false;
         }
         char *offset = strtok((char *) args, " ");
-        int32 offseti = -1;
+        int8 offseti = -1;
 
         if (offset) {
-            offseti = (uint32) atoi(offset);
+            offseti = (int8) atoi(offset);
             handler->PSendSysMessage("Changing Player Difficulty Offset to %i.", offseti);
             PlayerCountDifficultyOffset = offseti;
             return true;
@@ -707,45 +725,40 @@ public:
         return true;
     }
 
-    static bool HandleABCheckMapCommand(ChatHandler *handler, const char *args) {
-        Player *pl = handler->getSelectedPlayer();
-
-        if (!pl) {
-            handler->SendSysMessage(LANG_SELECT_PLAYER_OR_PET);
-            handler->SetSentErrorMessage(true);
-            return false;
-        }
-
-        AutoBalanceMapInfo *mapABInfo = pl->GetMap()->CustomData.GetDefault<AutoBalanceMapInfo>("AutoBalanceMapInfo");
-        mapABInfo->playerCount = pl->GetMap()->GetPlayersCountExceptGMs();
-
-        Map::PlayerList const &playerList = pl->GetMap()->GetPlayers();
-        uint8 level = 0;
-        if (!playerList.isEmpty()) {
-            for (Map::PlayerList::const_iterator playerIteration = playerList.begin();
-                 playerIteration != playerList.end(); ++playerIteration) {
-                if (Player * playerHandle = playerIteration->GetSource()) {
-                    if (playerHandle->getLevel() > level) {
-                        mapABInfo->mapLevel = level = playerHandle->getLevel();
-                    }
-                }
-            }
-        }
-        HandleABMapStatsCommand(handler, args);
-        return true;
-    }
-
     static bool HandleABMapStatsCommand(ChatHandler *handler, const char * /*args*/) {
-        Player *pl = handler->getSelectedPlayer();
-        if (!pl) {
+        Player *player = handler->getSelectedPlayer();
+        if (!player) {
             handler->SendSysMessage(LANG_SELECT_PLAYER_OR_PET);
             handler->SetSentErrorMessage(true);
             return false;
         }
 
-        AutoBalanceMapInfo *mapABInfo = pl->GetMap()->CustomData.GetDefault<AutoBalanceMapInfo>("AutoBalanceMapInfo");
-        handler->PSendSysMessage("Players on map: %u", mapABInfo->playerCount);
-        handler->PSendSysMessage("Max level of players in this map: %u", mapABInfo->mapLevel);
+        AutoBalanceMapInfo *mapABInfo = player->GetMap()->CustomData.GetDefault<AutoBalanceMapInfo>("AutoBalanceMapInfo");
+        if (player->GetMap()->IsDungeon() || player->GetMap()->IsBattleground())
+        {
+            handler->PSendSysMessage("---");
+            handler->PSendSysMessage("Map: ID %u | %s (%u-player %s)",
+                                    player->GetMapId(),
+                                    player->GetMap()->GetMapName(),
+                                    player->GetMap()->ToInstanceMap()->GetMaxPlayers(),
+                                    player->GetMap()->ToInstanceMap()->IsHeroic() ? "Heroic" : "Normal",
+                                    enabled ? "" : " | AutoBalance DISABLED");
+            handler->PSendSysMessage("Players on map: %u", mapABInfo->playerCount);
+            if (PlayerCountDifficultyOffset)
+            {
+                handler->PSendSysMessage("Adjusted Player Count: %u (Difficulty Offset of %d)", mapABInfo->adjustedPlayerCount, PlayerCountDifficultyOffset);
+            }
+            else
+            {
+                handler->PSendSysMessage("Adjusted Player Count: %u", mapABInfo->adjustedPlayerCount);
+            }
+            return true;
+        }
+        else
+        {
+            handler->PSendSysMessage("The target is not in a dungeon or battleground.");
+            return true;
+        }
         return true;
     }
 
