@@ -25,6 +25,16 @@ make pull requests to our [Github repository](https://github.com/The-Cataclysm-P
 For further information on the TrinityCore project, please visit our project
 website at [TrinityCore.org](https://www.trinitycore.org).
 
+The Cataclysm Preservation Project with autobalance module implemented.
+
+Instance mobs and bosses' health, mana, and damage is scaled based on number of players.
+
+The configuration file is merged into worldserver.conf.
+
+https://github.com/The-Cataclysm-Preservation-Project/TrinityCore
+https://github.com/azerothcore/mod-autobalance
+https://github.com/aleigood/TrinityCore-Autobalance
+
 ## Install
 
 Detailed installation guides are available in the [wiki](https://www.trinitycore.info/display/tc/Installation+Guide) for

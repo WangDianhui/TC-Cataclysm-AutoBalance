@@ -4203,7 +4203,7 @@ AutoBalanceAnnounce.enable = 1
 #        Enable/Disable the autobalance system
 #        Default:     1 (1 = ON, 0 = OFF)
 
-AutoBalance.enable = 1
+AutoBalance.enable = 0
 
 ##########################
 #
@@ -4212,7 +4212,9 @@ AutoBalance.enable = 1
 ##########################
 #
 #     AutoBalance.MinPlayers
-#     AutoBalance.MinPlayers.Heroic
+#     AutoBalance.MinPlayers.10M
+#     AutoBalance.MinPlayers.25M
+
 #        Sets the Minimum Number of players to scale down to for all normal/heroic instances.
 #        If fewer than this number of players enter the instance, scale to the specified value.
 #
@@ -4222,11 +4224,14 @@ AutoBalance.enable = 1
 #        AutoBalance.MinPlayers.Heroic affects only heroic instances.
 #
 #        Example: AutoBalance.MinPlayers = 1
-#                 AutoBalance.MinPlayers.Heroic = 5
+#                 AutoBalance.MinPlayers.10M = 2
+#                 AutoBalance.MinPlayers.10M = 5
 #
 #        Default: 1
-AutoBalance.MinPlayers = 1
-AutoBalance.MinPlayers.Heroic = 1
+
+AutoBalance.MinPlayers = 3
+AutoBalance.MinPlayers.10M = 5
+AutoBalance.MinPlayers.25M = 10
 
 ##########################
 #
@@ -4293,7 +4298,7 @@ AutoBalance.levelLowerOffset  = 0
 #
 #        Default:     0 (1 = ON, 0 = OFF)
 
-AutoBalance.levelUseDbValuesWhenExists = 0
+AutoBalance.levelUseDbValuesWhenExists = 1
 
 #
 #     AutoBalance.LevelEndGameBoost
@@ -4303,7 +4308,7 @@ AutoBalance.levelUseDbValuesWhenExists = 0
 #
 #        Default:     1 (1 = ON, 0 = OFF)
 
-AutoBalance.LevelEndGameBoost = 1
+AutoBalance.LevelEndGameBoost = 0
 
 #
 #     AutoBalance.DungeonScaleDownXP
@@ -4345,7 +4350,9 @@ AutoBalance.PlayerChangeNotify = 1
 #        Minimum Modifier setting for Health Modification
 #        Default:     0.01
 
-AutoBalance.MinHPModifier = 0.01
+AutoBalance.MinHPModifier = 0.3
+AutoBalance.MinHPModifier.10M = 0.2
+AutoBalance.MinHPModifier.25M = 0.075
 
 #
 #     AutoBalance.MinManaModifier
@@ -4359,7 +4366,9 @@ AutoBalance.MinManaModifier = 0.01
 #        Minimum Modifier setting for Damage Modification
 #        Default:     0.01
 
-AutoBalance.MinDamageModifier = 0.01
+AutoBalance.MinDamageModifier = 0.5
+AutoBalance.MinDamageModifier.10M = 0.4
+AutoBalance.MinDamageModifier.25M = 0.2
 
 #
 #     AutoBalance.rate.*
@@ -4380,19 +4389,6 @@ AutoBalance.rate.damage = 1.0
 #        Default:     0
 
 AutoBalance.playerCountDifficultyOffset = 0
-
-#
-#     AutoBalance.ForcedIDXX
-#        Sets MobIDs for the group they belong to.
-#        All 5 Man Mobs should go in .AutoBalance.5.Name
-#        All 10 Man Mobs should go in .AutoBalance.10.Name etc.
-
-AutoBalance.ForcedID40 = ""
-AutoBalance.ForcedID25 = ""
-AutoBalance.ForcedID20 = ""
-AutoBalance.ForcedID10 = ""
-AutoBalance.ForcedID5  = ""
-AutoBalance.ForcedID2  = ""
 
 #
 #     AutoBalance.DisabledID
