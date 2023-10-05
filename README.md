@@ -10,30 +10,13 @@
 
 ## Introduction
 
-TrinityCore is a *MMORPG* Framework based mostly in C++.
+The Cataclysm Preservation Project [Github](https://github.com/The-Cataclysm-Preservation-Project/TrinityCore) with autobalance module [Github](https://github.com/azerothcore/mod-autobalance) implemented.
 
-It is derived from *MaNGOS*, the *Massive Network Game Object Server*, and is
-based on the code of that project with extensive changes over time to optimize,
-improve and cleanup the codebase at the same time as improving the in-game
-mechanics and functionality.
-
-It is completely open source; community involvement is highly encouraged.
-
-If you wish to contribute ideas or code please visit our site linked below or
-make pull requests to our [Github repository](https://github.com/The-Cataclysm-Preservation-Project/TrinityCore).
-
-For further information on the TrinityCore project, please visit our project
-website at [TrinityCore.org](https://www.trinitycore.org).
-
-The Cataclysm Preservation Project with autobalance module implemented.
+The porting is referred to https://github.com/aleigood/TrinityCore-Autobalance
 
 Instance mobs and bosses' health, mana, and damage is scaled based on number of players.
 
 The configuration file is merged into worldserver.conf.
-
-https://github.com/The-Cataclysm-Preservation-Project/TrinityCore
-https://github.com/azerothcore/mod-autobalance
-https://github.com/aleigood/TrinityCore-Autobalance
 
 ## Install
 
@@ -57,9 +40,8 @@ reports are wasteful and are subject to deletion.
 
 ## Submitting fixes
 
-Fixes are submitted as pull requests via Github. For more information on how to
-properly submit a pull request, read the [how-to: maintain a remote fork](https://www.trinitycore.org/f/topic/6037-howto-maintain-a-remote-fork-for-pull-requests-tortoisegit/).
-NOTE: if a fix is valid also for 3.3.5a/master branches submit them also to [Github](https://github.com/TrinityCore/TrinityCore)
+Fixes are submitted as pull requests via Github. 
+[TCPP Pull Request] (https://github.com/The-Cataclysm-Preservation-Project/TrinityCore/pulls)
 
 
 ## Copyright
