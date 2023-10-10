@@ -39,7 +39,6 @@
 #include <bitset>
 #include <list>
 #include <memory>
-#include <mutex>
 
 class Battleground;
 class BattlegroundMap;

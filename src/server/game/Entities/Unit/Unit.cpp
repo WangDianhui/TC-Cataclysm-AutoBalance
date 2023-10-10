@@ -71,6 +71,7 @@
 #include "Spell.h"
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
+#include "SpellCastRequest.h"
 #include "SpellHistory.h"
 #include "SpellInfo.h"
 #include "SpellMgr.h"
@@ -292,7 +293,6 @@ bool DispelableAura::RollDispel() const
 {
     return roll_chance_i(_chance);
 }
-
 
 Unit::Unit(bool isWorldObject) :
     WorldObject(isWorldObject),  m_lastSanctuaryTime(0),
@@ -7904,7 +7904,7 @@ MountCapabilityEntry const* Unit::GetMountCapability(uint32 mountType) const
 
     uint32 areaId = GetAreaId();
     uint32 ridingSkill = 5000;
-    uint32 mountFlags = 0;
+    EnumFlag<AreaMountFlags> mountFlags = AreaMountFlags::None;
     bool isUnderwater = false;
     bool isInWater = false;
 
@@ -7914,10 +7914,10 @@ MountCapabilityEntry const* Unit::GetMountCapability(uint32 mountType) const
     if (HasAuraType(SPELL_AURA_MOUNT_RESTRICTIONS))
     {
         for (AuraEffect const* auraEffect : GetAuraEffectsByType(SPELL_AURA_MOUNT_RESTRICTIONS))
-            mountFlags |= auraEffect->GetMiscValue();
+            mountFlags |= AreaMountFlags(auraEffect->GetMiscValue());
     }
     else if (AreaTableEntry const* areaTable = sAreaTableStore.LookupEntry(areaId))
-        mountFlags = areaTable->MountFlags;
+        mountFlags = areaTable->GetMountFlags();
 
     ZLiquidStatus liquidStatus = GetLiquidStatus();
     isUnderwater = (liquidStatus & LIQUID_MAP_UNDER_WATER) != 0;
@@ -7934,13 +7934,13 @@ MountCapabilityEntry const* Unit::GetMountCapability(uint32 mountType) const
 
         if (!(mountCapability->Flags & MOUNT_CAPABIILTY_FLAG_IGNORE_RESTRICTIONS))
         {
-            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_GROUND && !(mountFlags & AREA_MOUNT_FLAG_GROUND_ALLOWED))
+            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_GROUND && !(mountFlags.HasFlag(AreaMountFlags::AllowGroundMounts)))
                 continue;
-            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_FLYING && !(mountFlags & AREA_MOUNT_FLAG_FLYING_ALLOWED))
+            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_FLYING && !(mountFlags.HasFlag(AreaMountFlags::AllowFlyingMounts)))
                 continue;
-            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_FLOAT && !(mountFlags & AREA_MOUNT_FLAG_FLOAT_ALLOWED))
+            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_FLOAT && !(mountFlags.HasFlag(AreaMountFlags::AllowSurfaceSwimmingMounts)))
                 continue;
-            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_UNDERWATER && !(mountFlags & AREA_MOUNT_FLAG_UNDERWATER_ALLOWED))
+            if (mountCapability->Flags & MOUNT_CAPABILITY_FLAG_UNDERWATER && !(mountFlags.HasFlag(AreaMountFlags::AllowUnderwaterSwimmingMounts)))
                 continue;
         }
 
@@ -14293,13 +14293,13 @@ bool Unit::CanExecutePendingSpellCastRequest(SpellInfo const* spellInfo) const
     return true;
 }
 
-void Unit::RequestSpellCast(PendingSpellCastRequest castRequest, SpellInfo const* spellInfo)
+void Unit::RequestSpellCast(std::unique_ptr<PendingSpellCastRequest> castRequest, SpellInfo const* spellInfo)
 {
     // We are overriding an already existing spell cast request so inform the client that the old cast is being replaced
-    if (_pendingSpellCastRequest.has_value())
+    if (_pendingSpellCastRequest)
         CancelPendingCastRequest();
 
-    _pendingSpellCastRequest = castRequest;
+    _pendingSpellCastRequest = std::move(castRequest);
 
     // If we can process the cast request right now, do it.
     if (CanExecutePendingSpellCastRequest(spellInfo))
@@ -14308,7 +14308,7 @@ void Unit::RequestSpellCast(PendingSpellCastRequest castRequest, SpellInfo const
 
 void Unit::CancelPendingCastRequest()
 {
-    if (!_pendingSpellCastRequest.has_value())
+    if (!_pendingSpellCastRequest)
         return;
 
     // We have to inform the client that the cast has been canceled to avoid the cast button to stay highlightened
@@ -14322,7 +14322,7 @@ void Unit::CancelPendingCastRequest()
         ToPlayer()->SendDirectMessage(&data);
     }
 
-    _pendingSpellCastRequest.reset();
+    _pendingSpellCastRequest = nullptr;
 }
 
 // A spell can be queued up within 400 milliseconds before global cooldown expires or the cast finishes
@@ -14343,14 +14343,14 @@ bool Unit::CanRequestSpellCast(SpellInfo const* spellInfo) const
 
 void Unit::ProcessPendingSpellCastRequest()
 {
-    if (!_pendingSpellCastRequest.has_value())
+    if (!_pendingSpellCastRequest)
         return;
 
     // Sanity check. If the player requested an invalid spell cast, just skip the request.
     SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(_pendingSpellCastRequest->CastRequest.SpellID);
     if (!spellInfo)
     {
-        _pendingSpellCastRequest.reset();
+        _pendingSpellCastRequest = nullptr;
         return;
     }
 
@@ -14368,7 +14368,7 @@ void Unit::ProcessPendingSpellCastRequest()
     if (_pendingSpellCastRequest->CastItemData.has_value())
     {
         ProcessItemCast(*_pendingSpellCastRequest, targets);
-        _pendingSpellCastRequest.reset();
+        _pendingSpellCastRequest = nullptr;
         return;
     }
 
@@ -14411,7 +14411,7 @@ void Unit::ProcessPendingSpellCastRequest()
 
         if (!allow)
         {
-            _pendingSpellCastRequest.reset();
+            _pendingSpellCastRequest = nullptr;
             return;
         }
     }
@@ -14422,7 +14422,7 @@ void Unit::ProcessPendingSpellCastRequest()
     // can't use our own spells when we're in possession of another unit,
     if (caster->isPossessing())
     {
-        _pendingSpellCastRequest.reset();
+        _pendingSpellCastRequest = nullptr;
         return;
     }
 
